@@ -15,6 +15,7 @@ jupyter contrib nbextension install
 python -m jupyter notebook
 ```
 
-### Dataset Download
+### Dataset
 
-[Oxford TownCentre Dataset](https://academictorrents.com/details/35e83806d9362a57be736f370c821960eb2f2a01)
+First download the [Oxford TownCentre Dataset](https://academictorrents.com/details/35e83806d9362a57be736f370c821960eb2f2a01), place the mp4 video in this folder and run `sh convert_video.sh` from terminal.
+
