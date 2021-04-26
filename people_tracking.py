@@ -21,169 +21,6 @@ class PersonTracker:
 
         # Select our tracking algorithm and create our multi tracker
         OPENCV_OBJECT_TRACKERS = {
-            # "boosting": cv2.TrackerBoosting_create,  # opencv 3.4
-            "mil": cv2.TrackerMIL_create,
-            "kcf": cv2.TrackerKCF_create,
-            # "tld": cv2.TrackerTLD_create,  # opencv 3.4
-            # "medianflow": cv2.TrackerMedianFlow_create,  # opencv 3.4
-            "goturn": cv2.TrackerGOTURN_create,
-            # "mosse": cv2.TrackerMOSSE_create,  # opencv 3.4
-            "csrt": cv2.TrackerCSRT_create,
-        }
-        self.tracker = OPENCV_OBJECT_TRACKERS[tracking_algorithm]()
-        self.tracker.init(frame, bbox)
-        self.active, bbox = self.tracker.update(frame)
-        bbox = tuple(np.array(bbox, dtype=int))
-
-        if self.active == True:
-            self.tracking_algorithm = tracking_algorithm
-            self.id = int(id)
-            self.centroid = self.get_centroid(bbox)
-            self.fails = int(0)
-            self.color = color
-            self.bbox = bbox
-
-    def __str__(self):
-        return f"id: {self.id}, fails: {self.fails}, active: {self.active}, bbox: {self.bbox}"
-
-    def update(self, frame):
-        if self.active == False:
-            return False
-
-        retval, bbox = self.tracker.update(frame)
-        bbox = tuple(np.array(bbox, dtype=int))
-
-        stucked = (self.bbox[0] == bbox[0]) and (self.bbox[1] == bbox[1])
-        if (retval == False) or (stucked == True):
-            self.fails += int(1)
-        else:
-            self.fails = int(0)
-            self.active = True
-        self.bbox = bbox
-
-        print(
-            f"Updated id {self.id}, fails: {self.fails}, bbox: {self.bbox} -> {bbox}"
-        )
-        if self.fails >= self.fails_limit:
-            self.remove()
-
-        return self.active
-
-    def remove(self):
-        self.active = False
-
-    def get_centroid(self, bbox):
-        (x, y, w, h) = bbox
-        xc = int(x + (w * 0.5))
-        yc = int(y + (h * 0.5))
-        return xc, yc
-
-    def draw(self, frame):
-        (x, y, w, h) = np.array(self.bbox, dtype=int)
-        cv2.rectangle(
-            frame, pt1=(x, y), pt2=(x + w, y + h), color=self.color, thickness=1
-        )
-        centroid = self.get_centroid(self.bbox)
-        cv2.circle(
-            frame, center=centroid, radius=2, color=self.color, thickness=1
-        )
-        cv2.putText(
-            frame,
-            text=f"{(int(self.id))}/{int(self.fails)}",
-            org=(x, y),
-            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-            fontScale=0.4,
-            color=self.color,
-            thickness=1,
-        )
-
-
-class PeopleTracker:
-    def __init__(self, debug=False):
-        self.debug = debug
-        self.trackers = list()
-
-    def __str__(self):
-        ret = ""
-        for i in range(len(self.trackers)):
-            ret += f"{self.trackers[i]}\n"
-        return ret[:-1]
-
-    def update(self, frame):
-        if len(self.trackers) == 0:
-            return False
-        for i in range(len(self.trackers)):
-            retval = self.trackers[i].update(frame)
-
-    def isPointInsideRect(self, point, rect) -> bool:
-        (x, y) = point
-        (x1, y1, w, h) = rect
-        (x2, y2) = (x1 + w, y1 + h)
-        return (x1 < x < x2) and (y1 < y < y2)
-
-    def add(self, frame, bbox, tracking_algorithm="kcf", fails_limit=25):
-        id = len(self.trackers) + 1
-
-        tracker = PersonTracker(
-            id, frame, bbox, tracking_algorithm, fails_limit
-        )
-
-        # Here is the integration between Detection and Tracking:
-        # We are only adding a new person if its centroid resides outside
-        # any other active tracked person's bbox, otherwise we use that
-        # detecion to update the already tracked person. Note that this
-        # is not the best idea to deal with oclusion.
-        isNew = True
-        if tracker.active == True:
-            for i in range(len(self.trackers)):
-                if self.isPointInsideRect(
-                    tracker.centroid, self.trackers[i].bbox
-                ):
-                    # Reset their fails
-                    self.trackers[i].fails = 0
-                    # Reactivate with this new tracker if it is inactive
-                    if self.trackers[i].active == False:
-                        id = i
-                        tracker.id = id
-                        self.trackers[i].tracker = tracker
-                    isNew = False
-
-        if isNew == True:
-            print(f"New person tracker added with id {id}.")
-            self.trackers.append(tracker)
-
-        return retval, id
-
-    def remove(self, id):
-        print(f"Person tracker with id {id} removed.")
-        self.trackers[id].remove()
-
-    def draw(self, frame):
-        if len(self.trackers) == 0:
-            return False
-        for i in range(len(self.trackers)):
-            if self.trackers[i].active == True:
-                self.trackers[i].draw(frame)
-
-
-class PersonTracker:
-    def __init__(
-        self,
-        id,
-        frame,
-        bbox,
-        tracking_algorithm,
-        fails_limit,
-        color=(0, 255, 0),
-        debug=False,
-    ):
-        self.debug = debug
-        self.fails_limit = fails_limit
-
-        bbox = tuple(bbox.astype(int))
-
-        # Select our tracking algorithm and create our multi tracker
-        OPENCV_OBJECT_TRACKERS = {
             #             "boosting": cv2.TrackerBoosting_create,  # opencv 3.4
             "mil": cv2.TrackerMIL_create,
             "kcf": cv2.TrackerKCF_create,
@@ -244,7 +81,11 @@ class PersonTracker:
     def draw(self, frame):
         (x, y, w, h) = np.array(self.bbox, dtype=int)
         cv2.rectangle(
-            frame, pt1=(x, y), pt2=(x + w, y + h), color=self.color, thickness=1
+            frame,
+            pt1=(x, y),
+            pt2=(x + w, y + h),
+            color=self.color,
+            thickness=1,
         )
         centroid = self.get_centroid(self.bbox)
         cv2.circle(
@@ -329,7 +170,9 @@ class PeopleTracker:
                 self.trackers[i].draw(frame)
 
 
-def HaarCascadeTracker(vcap, frames_to_process, minSize, maxSize, keyframe_interval):
+def HaarCascadeTracker(
+    vcap, frames_to_process, minSize, maxSize, keyframe_interval
+):
     # Create our body classifier
     detector = cv2.CascadeClassifier(
         # cv2.data.haarcascades + 'haarcascade_fullbody.xml'
@@ -457,7 +300,9 @@ if __name__ == "__main__":
     keyframe_interval = 10
 
     # Tracker Function
-    frame_count, processed_frames = HaarCascadeTracker(vcap, frames_to_process, minSize, maxSize, keyframe_interval)
+    frame_count, processed_frames = HaarCascadeTracker(
+        vcap, frames_to_process, minSize, maxSize, keyframe_interval
+    )
 
     # end timer
     end = time.time()
