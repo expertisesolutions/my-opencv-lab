@@ -18,6 +18,7 @@ class PersonTracker:
         self.fails_limit = fails_limit
 
         bbox = tuple(bbox.astype(int))
+        print("At track ", bbox)
 
         # Select our tracking algorithm and create our multi tracker
         OPENCV_OBJECT_TRACKERS = {
@@ -246,6 +247,110 @@ def HaarCascadeTracker(
     return (frame_count, processed_frames)
 
 
+def BackgroundSubtractorTracker(
+    vcap, frames_to_process, minSize, maxSize, keyframe_interval
+):
+
+    frame_width = int(vcap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(vcap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    # Create our body classifier
+    detector = cv2.createBackgroundSubtractorMOG2(
+        history=1250,
+        varThreshold=750,
+        detectShadows=False
+    )
+
+    frame_count = 0
+    processed_frames = np.zeros(frames_to_process, dtype=object)
+    fps_timer = [0, cv2.getTickCount()]
+
+    green = (0, 255, 0)
+    red = (255, 0, 0)
+
+    # Create our People Tracker
+    people = PeopleTracker()
+
+    while vcap.isOpened():
+        # Read a frame
+        retval, frame = vcap.read()
+        if not retval or frame_count == frames_to_process:
+            break
+
+        # Use the classifier to detect new people
+        if frame_count % keyframe_interval == 0:
+
+            # Filter image to get people blobs
+            mask = detector.apply(frame)
+            mask[mask > 125] = 255
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (1, 7))
+            mask = cv2.erode(mask, kernel, iterations=1)
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+            mask = cv2.dilate(mask, kernel, iterations=2)
+            mask = cv2.morphologyEx(
+                mask,
+                cv2.MORPH_CLOSE,
+                kernel,
+                iterations=5
+            )
+
+            # Consider each blob a person
+            contours, hierarchy = cv2.findContours(
+                mask,
+                cv2.RETR_EXTERNAL,
+                cv2.CHAIN_APPROX_SIMPLE
+            )
+            bboxes = []
+            for countour in contours:
+                # Calculate area and remove small elements
+                area = cv2.contourArea(countour)
+                if area > 1:
+                    x, y, w, h = cv2.boundingRect(countour)
+                    bboxes += [np.array([x, y, w, h])]
+
+            # Reconstruct the colors
+            frame = cv2.bitwise_and(frame, frame, mask=mask)
+
+            for bbox in bboxes:
+                people.add(
+                    frame,
+                    bbox,
+                    fails_limit=50,
+                    tracking_algorithm="kcf",
+                    # tracking_algorithm="csrt",
+                    # tracking_algorithm="mil",
+                    # tracking_algorithm="goturn",
+                )
+
+        people.update(frame)
+
+        people.draw(frame)
+
+        # Compute and put FPS on frame
+        fps = cv2.getTickFrequency() / (fps_timer[1] - fps_timer[0])
+        fps_timer[0] = fps_timer[1]
+        fps_timer[1] = cv2.getTickCount()
+        cv2.putText(
+            frame,
+            text=f"FPS: {int(fps)}",
+            org=(frame_width - 60, frame_height - 5),
+            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+            fontScale=0.3,
+            color=green,
+            thickness=1,
+        )
+
+        # Save frame
+        processed_frames[frame_count] = frame
+        frame_count += 1
+
+        # Show in app
+        cv2.imshow(window_name, frame)
+        cv2.waitKey(1)
+
+    return (frame_count, processed_frames)
+
+
 if __name__ == "__main__":
     print("Available Trackers:")
     for d in dir(cv2):
@@ -300,7 +405,7 @@ if __name__ == "__main__":
     keyframe_interval = 10
 
     # Tracker Function
-    frame_count, processed_frames = HaarCascadeTracker(
+    frame_count, processed_frames = BackgroundSubtractorTracker(
         vcap, frames_to_process, minSize, maxSize, keyframe_interval
     )
 
