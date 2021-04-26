@@ -156,7 +156,7 @@ class PeopleTracker:
             print(f"New person tracker added with id {id}.")
             self.trackers.append(tracker)
 
-        return retval, id
+        return id
 
     def remove(self, id):
         print(f"Person tracker with id {id} removed.")
@@ -186,6 +186,9 @@ def HaarCascadeTracker(
 
     green = (0, 255, 0)
     red = (255, 0, 0)
+
+    # Create our People Tracker
+    people = PeopleTracker()
 
     while vcap.isOpened():
         # Read a frame
@@ -283,9 +286,6 @@ if __name__ == "__main__":
     )
 
     print(f'Processing "{input_filename}" ({int(n_frames)} frames)...')
-
-    # Create our People Tracker
-    people = PeopleTracker()
 
     # # Start app
     window_name = "People Tracking"
