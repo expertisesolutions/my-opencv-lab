@@ -21,13 +21,13 @@ class PersonTracker:
 
         # Select our tracking algorithm and create our multi tracker
         OPENCV_OBJECT_TRACKERS = {
-            #             "boosting": cv2.TrackerBoosting_create,  # opencv 3.4
+            # "boosting": cv2.TrackerBoosting_create,  # opencv 3.4
             "mil": cv2.TrackerMIL_create,
             "kcf": cv2.TrackerKCF_create,
-            #             "tld": cv2.TrackerTLD_create,  # opencv 3.4
-            #             "medianflow": cv2.TrackerMedianFlow_create,  # opencv 3.4
+            # "tld": cv2.TrackerTLD_create,  # opencv 3.4
+            # "medianflow": cv2.TrackerMedianFlow_create,  # opencv 3.4
             "goturn": cv2.TrackerGOTURN_create,
-            #             "mosse": cv2.TrackerMOSSE_create,  # opencv 3.4
+            # "mosse": cv2.TrackerMOSSE_create,  # opencv 3.4
             "csrt": cv2.TrackerCSRT_create,
         }
         self.tracker = OPENCV_OBJECT_TRACKERS[tracking_algorithm]()
@@ -35,7 +35,7 @@ class PersonTracker:
         self.active, bbox = self.tracker.update(frame)
         bbox = tuple(np.array(bbox, dtype=int))
 
-        if self.active == True:
+        if self.active:
             self.tracking_algorithm = tracking_algorithm
             self.id = int(id)
             self.centroid = self.get_centroid(bbox)
@@ -47,14 +47,14 @@ class PersonTracker:
         return f"id: {self.id}, fails: {self.fails}, active: {self.active}, bbox: {self.bbox}"
 
     def update(self, frame):
-        if self.active == False:
+        if not self.active:
             return False
 
         retval, bbox = self.tracker.update(frame)
         bbox = tuple(np.array(bbox, dtype=int))
 
         stucked = (self.bbox[0] == bbox[0]) and (self.bbox[1] == bbox[1])
-        if (retval == False) or (stucked == True):
+        if (retval is False) or (stucked is True):
             self.fails += int(1)
         else:
             self.fails = int(0)
@@ -138,7 +138,7 @@ class PeopleTracker:
         # detecion to update the already tracked person. Note that this
         # is not the best idea to deal with oclusion.
         isNew = True
-        if tracker.active == True:
+        if tracker.active:
             for i in range(len(self.trackers)):
                 if self.isPointInsideRect(
                     tracker.centroid, self.trackers[i].bbox
@@ -146,13 +146,13 @@ class PeopleTracker:
                     # Reset their fails
                     self.trackers[i].fails = 0
                     # Reactivate with this new tracker if it is inactive
-                    if self.trackers[i].active == False:
+                    if not self.trackers[i].active:
                         id = i
                         tracker.id = id
                         self.trackers[i].tracker = tracker
                     isNew = False
 
-        if isNew == True:
+        if isNew:
             print(f"New person tracker added with id {id}.")
             self.trackers.append(tracker)
 
@@ -166,7 +166,7 @@ class PeopleTracker:
         if len(self.trackers) == 0:
             return False
         for i in range(len(self.trackers)):
-            if self.trackers[i].active == True:
+            if self.trackers[i].active:
                 self.trackers[i].draw(frame)
 
 
