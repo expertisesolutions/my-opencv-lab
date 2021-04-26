@@ -329,73 +329,21 @@ class PeopleTracker:
                 self.trackers[i].draw(frame)
 
 
-if __name__ == "__main__":
-    print("Available Trackers:")
-    for d in dir(cv2):
-        if "Tracker" in d:
-            print("\t -", d)
-
-    # Open the input video capture
-    # minSize, maxSize, input_filename = ((100,100), (120,120), './1080p_TownCentreXVID.mp4')
-    # minSize, maxSize, input_filename = (None, (120,120), './720p_TownCentreXVID.mp4')
-    # minSize, maxSize, input_filename = ((20,20), (80,80), './480p_TownCentreXVID.mp4')
-    minSize, maxSize, input_filename = (
-        (5, 10),
-        (60, 40),
-        "./360p_TownCentreXVID.mp4",
-    )
-    vcap = cv2.VideoCapture(input_filename)
-
-    # Get video properties
-    frame_width = int(vcap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    frame_height = int(vcap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = vcap.get(cv2.CAP_PROP_FPS)
-    n_frames = int(vcap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    print("Frame width:", frame_width)
-    print("Frame width:", frame_height)
-    print("Video fps:", fps)
-
-    # Setup the output video file
-    output_filename = "./output.mp4"
-    apiPreference = cv2.CAP_FFMPEG
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    vout = cv2.VideoWriter(
-        filename=output_filename,
-        apiPreference=apiPreference,
-        fourcc=fourcc,
-        fps=fps,
-        frameSize=(frame_width, frame_height),
-    )
-
-    print(f'Processing "{input_filename}" ({int(n_frames)} frames)...')
-
+def HaarCascadeTracker(vcap, frames_to_process, minSize, maxSize, keyframe_interval):
     # Create our body classifier
     detector = cv2.CascadeClassifier(
         # cv2.data.haarcascades + 'haarcascade_fullbody.xml'
         cv2.data.haarcascades
         + "haarcascade_upperbody.xml"
     )
-    # Create our People Tracker
-    people = PeopleTracker()
 
-    # # Start app
-    window_name = "People Tracking"
-    cv2.startWindowThread()
-    cv2.namedWindow(window_name)
-
-    # Loop each frame
     frame_count = 0
-    frames_to_process = 1000
     processed_frames = np.zeros(frames_to_process, dtype=object)
+    fps_timer = [0, cv2.getTickCount()]
 
     green = (0, 255, 0)
     red = (255, 0, 0)
 
-    # start timer
-    start = time.time()
-    keyframe_interval = 10
-    fps_timer = [0, cv2.getTickCount()]
     while vcap.isOpened():
         # Read a frame
         retval, frame = vcap.read()
@@ -448,6 +396,68 @@ if __name__ == "__main__":
         # Show in app
         cv2.imshow(window_name, frame)
         cv2.waitKey(1)
+
+    return (frame_count, processed_frames)
+
+
+if __name__ == "__main__":
+    print("Available Trackers:")
+    for d in dir(cv2):
+        if "Tracker" in d:
+            print("\t -", d)
+
+    # Open the input video capture
+    # minSize, maxSize, input_filename = ((100,100), (120,120), './1080p_TownCentreXVID.mp4')
+    # minSize, maxSize, input_filename = (None, (120,120), './720p_TownCentreXVID.mp4')
+    # minSize, maxSize, input_filename = ((20,20), (80,80), './480p_TownCentreXVID.mp4')
+    minSize, maxSize, input_filename = (
+        (5, 10),
+        (60, 40),
+        "./360p_TownCentreXVID.mp4",
+    )
+    vcap = cv2.VideoCapture(input_filename)
+
+    # Get video properties
+    frame_width = int(vcap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(vcap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = vcap.get(cv2.CAP_PROP_FPS)
+    n_frames = int(vcap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    print("Frame width:", frame_width)
+    print("Frame width:", frame_height)
+    print("Video fps:", fps)
+
+    # Setup the output video file
+    output_filename = "./output.mp4"
+    apiPreference = cv2.CAP_FFMPEG
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    vout = cv2.VideoWriter(
+        filename=output_filename,
+        apiPreference=apiPreference,
+        fourcc=fourcc,
+        fps=fps,
+        frameSize=(frame_width, frame_height),
+    )
+
+    print(f'Processing "{input_filename}" ({int(n_frames)} frames)...')
+
+    # Create our People Tracker
+    people = PeopleTracker()
+
+    # # Start app
+    window_name = "People Tracking"
+    cv2.startWindowThread()
+    cv2.namedWindow(window_name)
+
+    # Loop each frame
+    frames_to_process = 1000
+
+    # start timer
+    start = time.time()
+    keyframe_interval = 10
+
+    # Tracker Function
+    frame_count, processed_frames = HaarCascadeTracker(vcap, frames_to_process, minSize, maxSize, keyframe_interval)
 
     # end timer
     end = time.time()
