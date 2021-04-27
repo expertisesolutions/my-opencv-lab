@@ -18,7 +18,6 @@ class PersonTracker:
         self.fails_limit = fails_limit
 
         bbox = tuple(bbox.astype(int))
-        print("At track ", bbox)
 
         # Select our tracking algorithm and create our multi tracker
         OPENCV_OBJECT_TRACKERS = {
@@ -43,6 +42,7 @@ class PersonTracker:
             self.fails = int(0)
             self.color = color
             self.bbox = bbox
+        #print("Person:init", self.bbox)
 
     def __str__(self):
         return f"id: {self.id}, fails: {self.fails}, active: {self.active}, bbox: {self.bbox}"
@@ -53,6 +53,7 @@ class PersonTracker:
 
         retval, bbox = self.tracker.update(frame)
         bbox = tuple(np.array(bbox, dtype=int))
+        #print("Person:update", bbox)
 
         stucked = (self.bbox[0] == bbox[0]) and (self.bbox[1] == bbox[1])
         if (retval is False) or (stucked is True):
@@ -61,6 +62,7 @@ class PersonTracker:
             self.fails = int(0)
             self.active = True
         self.bbox = bbox
+        #print("Person:update", self.bbox)
 
         print(
             f"Updated id {self.id}, fails: {self.fails}, bbox: {self.bbox} -> {bbox}"
@@ -101,6 +103,7 @@ class PersonTracker:
             color=self.color,
             thickness=1,
         )
+        #print("Person:draw", self.bbox)
 
 
 class PeopleTracker:
@@ -127,6 +130,7 @@ class PeopleTracker:
         return (x1 < x < x2) and (y1 < y < y2)
 
     def add(self, frame, bbox, tracking_algorithm="kcf", fails_limit=25):
+        #print("People:add", bbox)
         id = len(self.trackers) + 1
 
         tracker = PersonTracker(
@@ -154,8 +158,10 @@ class PeopleTracker:
                     isNew = False
 
         if isNew:
-            print(f"New person tracker added with id {id}.")
+            print(f"New person tracker added with id {id}, bbox {bbox}.")
             self.trackers.append(tracker)
+
+        #print("People:add", tracker.bbox)
 
         return id
 
@@ -277,41 +283,43 @@ def BackgroundSubtractorTracker(
         if not retval or frame_count == frames_to_process:
             break
 
+        # Filter image to get people blobs
+        mask = detector.apply(frame)
+        mask[mask > 125] = 255
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (1, 7))
+        mask = cv2.erode(mask, kernel, iterations=1)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+        mask = cv2.dilate(mask, kernel, iterations=2)
+        mask = cv2.morphologyEx(
+            mask,
+            cv2.MORPH_CLOSE,
+            kernel,
+            iterations=5
+        )
+
+        # Consider each blob a person
+        contours, hierarchy = cv2.findContours(
+            mask,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_SIMPLE
+        )
+        bboxes = []
+        for countour in contours:
+            # Calculate area and remove small elements
+            area = cv2.contourArea(countour)
+            if area > 1:
+                x, y, w, h = cv2.boundingRect(countour)
+                bboxes += [np.array([x, y, w, h])]
+            #print("BGSub: countour", (x, y, w, h))
+
+        # Reconstruct the colors
+        frame = cv2.bitwise_and(frame, frame, mask=mask)
         # Use the classifier to detect new people
         if frame_count % keyframe_interval == 0:
 
-            # Filter image to get people blobs
-            mask = detector.apply(frame)
-            mask[mask > 125] = 255
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (1, 7))
-            mask = cv2.erode(mask, kernel, iterations=1)
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-            mask = cv2.dilate(mask, kernel, iterations=2)
-            mask = cv2.morphologyEx(
-                mask,
-                cv2.MORPH_CLOSE,
-                kernel,
-                iterations=5
-            )
-
-            # Consider each blob a person
-            contours, hierarchy = cv2.findContours(
-                mask,
-                cv2.RETR_EXTERNAL,
-                cv2.CHAIN_APPROX_SIMPLE
-            )
-            bboxes = []
-            for countour in contours:
-                # Calculate area and remove small elements
-                area = cv2.contourArea(countour)
-                if area > 1:
-                    x, y, w, h = cv2.boundingRect(countour)
-                    bboxes += [np.array([x, y, w, h])]
-
-            # Reconstruct the colors
-            frame = cv2.bitwise_and(frame, frame, mask=mask)
 
             for bbox in bboxes:
+                #print("BGSub", bbox)
                 people.add(
                     frame,
                     bbox,
@@ -405,6 +413,7 @@ if __name__ == "__main__":
     keyframe_interval = 10
 
     # Tracker Function
+    #frame_count, processed_frames = HaarCascadeTracker(
     frame_count, processed_frames = BackgroundSubtractorTracker(
         vcap, frames_to_process, minSize, maxSize, keyframe_interval
     )
